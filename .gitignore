@@ -1,2 +1,4 @@
-.xml
-.txt
+*.txt
+*.xml
+
+__pycache__/*
