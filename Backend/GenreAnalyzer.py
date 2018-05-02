@@ -1,7 +1,6 @@
 import json
 import xmltodict
 import requests
-from bs4 import BeautifulSoup
 from threading import Thread
 import threading
 import time
@@ -15,6 +14,7 @@ sys.path.append("Backend.")
 
 from GenreDatabase import *
 from helpers import *
+from AnimeScraper import *
 
 from multiprocessing.dummy import Pool
 
@@ -114,8 +114,6 @@ class Analyzer:
 
 	def getGenres(self, anime):
 
-		# if anime['my_status'].upper() not in self.STATUS or anime['series_type'].upper() not in self.TYPES:
-		# 	return self
 		if int(anime['my_score']) == 0:
 			if int(anime['my_status']) == 4:
 				anime['my_score'] = '0'
@@ -143,6 +141,7 @@ class Analyzer:
 					if type(Search) == list:
 						print(anime['series_animedb_id'], anime['series_title'], [(x.id, x.title) for x in Search])
 
+					# print(spice.search(anime['series_title'].replace("+", "_"), spice.get_medium('anime'), credentials = creds).__dict__)
 
 					self.ID_TO_GENRES[anime['series_animedb_id']]['Ratings']['0'] = float(Search.score)
 
@@ -179,46 +178,10 @@ class Analyzer:
 			self.COUNT += 1
 			return self	
 
+		# Scrape the Anime
+		self.ID_TO_GENRES[anime['series_animedb_id']] = scrape_anime(self.INFO['user_id'], anime)
 
-		# Try to get Site information
-		site = requests.get("https://myanimelist.net/anime/"+ str(anime['series_animedb_id']))
-		retries = 0
-		while site.status_code != 200 and retries <= self.RETRIES:
-			time.sleep(5)
-			site = requests.get("https://myanimelist.net/anime/"+ str(anime['series_animedb_id']))
-			retries += 1
-
-		# If we retried too much
-		if retries == self.RETRIES + 1:
-			return self
-
-		# Us Beautiful Soup to pull the Genres from the page
-		soup = BeautifulSoup(site.text, "html.parser")
-		rawGenres = soup.find('span', text='Genres:')
-		Genres = [x.text for x in rawGenres.parent.find_all(href = True)]
-
-		rawScore = soup.find('span', text='Score:')
-		Score = rawScore.parent.find(itemprop = 'ratingValue').text
-
-		try:
-			Aired = spice.search_id(int(anime[0]), spice.get_medium('anime'), creds).dates
-		except:
-			rawAired = soup.find('span', text='Aired:')
-			Aired = None
-
-		rawEpisodes = soup.find('span', text='Episodes:')
-		Episodes = rawEpisodes.parent.text
-
-		self.ID_TO_GENRES[anime['series_animedb_id']] = {
-		'Genres' : Genres,
-		'Ratings' : {self.INFO['user_id'] : int(anime['my_score']), '0' : float(Score)},
-		'Title' : anime['series_title'],
-		'Type' : anime['series_type'] ,
-		'Aired' : Aired ,
-		'Episodes' : int(Episodes.split('\n')[2].strip())
-		}
 		self.COUNT += 1
-		print("Found a new Anime! ({})".format(anime['series_title']))
 		return self
 
 	def runThreads(self):
@@ -232,7 +195,7 @@ class Analyzer:
 
 		while(threading.activeCount() > 2):
 			print("Waiting for finish... ({} remaining)".format(threading.activeCount() - 2))
-			print([x._args for x in threading.enumerate()])
+			# print([x._args for x in threading.enumerate()])
 			time.sleep(3)
 
 		self.ANIMES = {}
@@ -242,90 +205,8 @@ class Analyzer:
 		return self
 
 	def aggregate(self):
-		#self.LOWESTRATING = sorted(self.RATINGSLIST)[0] #int(len(self.RATINGSLIST)*.05)
-		#self.HIGHESTRATING = sorted(self.RATINGSLIST, reverse=True)[0] #int(len(self.RATINGSLIST)*.05)
-		# self.DIFF = []
-		# for anime in self.ANIME_TO_GENRES.keys():
-		# 	anime = json.loads(anime)
-		# 	num = int(anime['my_score']) - self.ID_TO_GENRES[anime['series_animedb_id']]['Ratings']['0']
-		# 	if num > 3 or num < -3:
-		# 		continue
-		# 	self.DIFF.append(num)
 
 		self.GenresByRating.load_from_anime_list(self.ID_TO_GENRES.items(), self.INFO['user_id'])
-
-		# self.DIFF = sum(self.DIFF) / len(self.DIFF)
-		# def update_tree(tree, keys, anime):
-		# 	pass
-		# 	# For every Genre
-
-		# 	# new_keys = list(keys)
-		# 	# for key in sorted(keys):
-		# 	# 	new_keys.remove(key)
-
-		# 	# 	# If we don't have the key in the current tree
-		# 	# 	if key not in tree:
-		# 	# 		tree[key] = {}
-
-		# 	# 	# If we have gotten here before, but just saved it as a subtree to conserve space / time
-		# 	# 	if tree[key].get('subgenres') != None:
-		# 	# 		tree[key] = update_tree(tree[key], tree[key]['subgenres'], anime)
-		# 	# 		del tree[key]['subgenres']
-
-		# 	# 	# Value is equal to the difference between your given score and the actual score of the anime
-		# 	# 	value = (int(anime['my_score']) - self.DIFF) / self.ID_TO_GENRES[anime['series_animedb_id']]['Ratings']['0']
-
-		# 	# 	tree[key]['ratings'] = tree[key].get('ratings', []) + [value]
-		# 	# 	tree[key]['display'] = len(tree[key]['ratings']) > self.COUNT * self.CUTOFF_PERCENT
-		# 	# 	tree[key]['score'] = round(sum(tree[key]['ratings']) / len(tree[key]['ratings']), 2)
-
-		# 	# 	if len(new_keys) > 0:
-		# 	# 		if len(tree[key]['ratings']) > 1:
-		# 	# 			tree[key] = update_tree(tree[key], new_keys, anime)
-		# 	# 		else:
-		# 	# 			tree[key]['subgenres'] = new_keys
-
-		# 	# return tree
-
-			
-		# 	# for key in sorted(keys):
-		# 	# 	new_keys = list(keys)
-		# 	# 	new_keys.remove(key)
-
-		# 	# 	# If we don't have the key in the current tree
-		# 	# 	if key not in tree:
-		# 	# 		tree[key] = {}
-
-		# 	# 	# If we have gotten here before, but just saved it as a subtree to conserve space / time
-		# 	# 	if tree[key].get('subgenres') != None:
-		# 	# 		tree[key] = update_tree(tree[key], tree[key]['subgenres'], anime)
-		# 	# 		del tree[key]['subgenres']
-
-		# 	# 	# Value is equal to the difference between your given score and the actual score of the anime
-		# 	# 	value = (int(anime['my_score']) - self.DIFF) - self.ID_TO_GENRES[anime['series_animedb_id']]['Ratings']['0']
-
-		# 	# 	tree[key]['ratings'] = tree[key].get('ratings', []) + [value]
-		# 	# 	tree[key]['display'] = len(tree[key]['ratings']) > self.COUNT * self.CUTOFF_PERCENT
-		# 	# 	tree[key]['score'] = round(sum(tree[key]['ratings']) / len(tree[key]['ratings']), 2)
-
-		# 	# 	if len(keys) != 1:
-		# 	# 		if len(tree[key]['ratings']) > 1:
-		# 	# 			tree[key] = update_tree(tree[key], new_keys, anime)
-		# 	# 		elif len(new_keys) > 0:
-		# 	# 			tree[key]['subgenres'] = new_keys
-
-		# 	# return tree
-
-		# for anime, genres in self.ANIME_TO_GENRES.items():
-		# 	anime = json.loads(anime)
-
-		# 	#print("{}, {}".format(anime['series_title'], int(anime['my_score'])/self.ID_TO_GENRES[anime['series_animedb_id']]['Ratings']['0']))
-		# 	num = int(anime['my_score']) - self.ID_TO_GENRES[anime['series_animedb_id']]['Ratings']['0']
-		# 	if num > 4 or num < -4:
-		# 		continue
-		# 	self.GenresByRating = update_tree(self.GenresByRating, genres, anime)
-		# 	# print("Next")
-		# 	# print(self.GenresByRating['Action'])
 
 		with open("Backend/GENRE_DUMP.json", 'w') as f:
 			json.dump(self.GenresByRating.dictionary, f, indent = 4)
@@ -411,6 +292,7 @@ def WillILike(name, genres, **kwargs):
 
 	Score = round(sum(Scores)/len(Scores), 4)#, round(count/len(pairs) * 100, 2)
 
+	# If you want printing
 	if not kwargs.get('quiet', False):
 		to_print = ""
 		if Score > 0:
@@ -446,39 +328,15 @@ def recommendGenreGroups(name, num = 10, **kwargs):
 	if A == None:
 		A = Analyzer(name = name).runThreads().aggregate().updateDatabase()
 	kwargs['A'] = A
-	groupings =  helpers.get_Combinations([key for key in A.GenresByRating.dictionary.keys() if len(key.split("-")) == 1], lowest = kwargs.get("smallest_group_size", 3), highest = kwargs.get("largest_group_size", 5))
+	groupings =  helpers.get_Combinations([key for key in A.GenresByRating.dictionary.keys() if len(key.split("-")) == 1], lowest = kwargs.get("smallest_group_size", 2), highest = kwargs.get("largest_group_size", 4))
 
 	Entries = {}
 	for genres in groupings:
-
-		# found_loc = A.GenresByRating.get_score(genres)
-		# if found_loc == None and kwargs.get('new_groups', False):
-		# 	continue
-		# if found_loc != None and kwargs.get('current_groups', False):
-		# 	continue
-
-		# print(genres)
 		Entries["/".join(genres)] = A.GenresByRating.get_score(genres) if A.GenresByRating.get_score(genres) != None else 0 # WillILike(name, genres, quiet = True, count_missing = True, **kwargs)
-		# pairs = [combo for L in range(0, min(len(genres)+1, kwargs.get("largest_group_size", 4)+1)) for combo in itertools.combinations(genres, L)][1:]
-
-
-		# Scores = []
-		# for pair in pairs:
-		# 	try:
-		# 		score = find_loc(A.GenresByRating, pair).get('score', 0)
-		# 		if score == 0:
-		# 			continue
-		# 		for x in range(len(pair)+1):
-		# 			Scores.append(score)
-		# 	except:
-		# 		pass
-
-		# Entries["/".join(pair)] = round(sum(Scores)/len(Scores), 3) if len(Scores) > 0 else 0
 
 	if num == "ALL":
 		num = len(Entries)
 	return sorted(Entries.items(), key = lambda x: x[1], reverse = True)[:num]
-	#group_to_rating = [(group, WillILike("Nikolai", group, quiet = True)) for group in groupings]
 
 def recommendAnimes(name, num=10, **kwargs):
 
@@ -516,6 +374,8 @@ def recommendAnimes(name, num=10, **kwargs):
 
 	FINDING_MULTIPLIER = kwargs.get("finding_multiplier", 200 / num)
 
+	print(FINDING_MULTIPLIER)
+
 	LAZY = kwargs.get("lazy", False)
 
 	stime = time.time()
@@ -530,7 +390,7 @@ def recommendAnimes(name, num=10, **kwargs):
 
 		if list(genreGroup)[1] == 0:
 			break
-		# print(genreGroup)
+		print(genreGroup)
 		# Look through our database for animes
 		FoundAnimes = FindInDataBase(genreGroup[0].split('/'), ID_TO_GENRES = A.ID_TO_GENRES)
 
@@ -641,7 +501,7 @@ def recommendAnimes(name, num=10, **kwargs):
 	print(kwargs)
 	if kwargs.get('nice_print', False):
 		print("nice")
-		return "\n".join(["{}Likeness: {}%\n".format(AnimeInfo(x[0], nice_print = True), x[1]) for x in sortedList[:num]])
+		return "\n".join(["{}".format(AnimeInfo(x[0], nice_print = True)) for x in sortedList[:num]])
 	else:
 		return sortedList[:num]
 
@@ -651,9 +511,11 @@ def valid_date(date, after, before):
 	# print(year1, year2)
 	if after == None and before == None:
 		return True
-	if after != None and (int(year1) >= after or int(year2) >= after):
+	if (after != None and (int(year1) >= after or int(year2) >= after)) and before == None:
 		return True
-	elif before != None and (int(year1) <= before or int(year2) <= before):
+	if after == None and (before != None and (int(year1) <= before or int(year2) <= before)):
+		return True
+	if (after != None and (int(year1) >= after or int(year2) >= after)) and (before != None and (int(year1) <= before or int(year2) <= before)):
 		return True
 	return False
 
@@ -921,7 +783,7 @@ def AnimeInfo(animeName, ** kwargs):
 				# 		Aired = "{} to now".format(Aired[0])
 				# 	else:
 				# 		Aired = "{} to {}".format(Aired[0], Aired[1])
-				return "Title: {}\nType: {}\nGenres: {}\nEpisodes: {}\nAired: {}\n".format(Dict['Title'], Dict['Type'], ", ".join(Dict['Genres']), Dict['Episodes'], " to ".join(Dict['Aired']))
+				return "Title: {}\nType: {}\nGenres: {}\nEpisodes: {}\nAired: {}\nMAL Link: {}\n".format(Dict['Title'], Dict['Type'], ", ".join(Dict['Genres']), Dict['Episodes'], " to ".join(Dict['Aired']), MALLINK.format(ID, Dict['Title'].replace(" ", "_")))
 
 def extractAired(Aired):
 	if Aired == "Not Available":

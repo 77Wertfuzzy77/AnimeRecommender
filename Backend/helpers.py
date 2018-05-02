@@ -51,6 +51,8 @@ Vampire = "Vampire"
 Yaoi = "Yaoi"
 Yuri = "Yuri"
 
+MALLINK = "https://myanimelist.net/anime/{}/{}"
+
 GENRES = [Action, Adventure, Cars, Comedy, Dementia, Demons, Drama, Ecchi, Fantasy, Game, Harem, Hentai, Historical, Horror, Josei, Kids, Magic, Martial_Arts, Mecha, Music, Mystery, Parody, Police, Psychological, Romance, Samurai, School, Sci_Fi, Seinen, Shoujo, Shoujo_Ai, Shounen, Shounen_Ai, Slice_of_Life, Space, Sports, Super_Power, Supernatural, Thriller, Vampire, Yaoi, Yuri]
 
 TOP_URL = 'https://myanimelist.net/topanime.php?limit={}&type=tv'

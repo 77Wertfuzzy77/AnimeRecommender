@@ -105,7 +105,7 @@ def convert(d):
         if key == "exclude_genres":
             d[key] = d[key].split("|")
 
-        if key == "after_year" or key == "before_year" or key == 'max_episodes' or key == "min_episodes":
+        if key == "after_year" or key == "before_year" or key == 'max_episodes' or key == "min_episodes" or key == "finding_multiplier":
             d[key] = int(d[key])
 
     return d
