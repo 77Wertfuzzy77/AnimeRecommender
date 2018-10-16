@@ -1,0 +1,35 @@
+<html>
+  <head>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/index.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/master.css') }}">
+  </head>
+
+  <div id="root">
+  <title>Steins; Guidance</title>
+    <link href="https://fonts.googleapis.com/css?family=Neuton" rel="stylesheet"></link>
+    <div class="page-container">
+      <div class="container">
+        <div class="absolute" id="main-image"></div>
+        <div class="absolute" id="legs"></div>
+        <div class="title">
+          <div class="floater">
+            Steins; Guidance
+          </div>
+        </div>
+        <div class="MAL-input-holder holder">
+          <input type="text" placeholder="MyAnimeList Username" class="MAL-input"></input>
+        </div>
+        <div class="mal-submit-space">
+          <div class="MAL-submit-holder holder">
+            <div class="MAL-submit">
+              Submit
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="absolute mal-text" id="main-info">
+      {% block content %}{% endblock %}
+      </div>
+    </div>
+  </div>
+<html>

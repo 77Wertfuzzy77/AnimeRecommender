@@ -1,9 +1,9 @@
 import json
 from functools import lru_cache
 from datetime import datetime
-import math
 from multiprocessing.dummy import Pool
 from threading import Thread, Lock
+from fuzzywuzzy import process
 
 def index_database(database, **kwargs):
 	db = {}
@@ -29,7 +29,7 @@ def write():
 	with FILE_LOCK:
 		print("Writing to File")
 		with open("INDEXED_DATABASE.json", 'w') as f:
-			json.dump(INDEXED_DATABASE, f, indent = 2)	
+			json.dump(INDEXED_DATABASE, f, indent = 2)
 
 def refresh(animes):
 	print("Refreshing Database file")
@@ -43,6 +43,26 @@ def refresh(animes):
 # @lru_cache(maxsize = 1000)
 def find_by_id(mal_id):
 	return INDEXED_DATABASE.get(str(mal_id))
+
+def find_by_name(name):
+	for value in INDEXED_DATABASE.values():
+		if value['title'] == name:
+			return value
+		if value['title_english'] == name:
+			return value
+
+def search_by_name(name):
+	names = []
+	for value in INDEXED_DATABASE.values():
+		title = value['title']
+		names.append(title)
+		title_english = value.get('title_english')
+		if title_english not in [None, "", "Null", "null"] and title_english not in names:
+			names.append(title_english)
+	real_name = process.extract(name, names)
+	return real_name
+
+# search_by_name("steins gate 0")
 
 def find_kwargs(**kwargs):
 	ret = []
@@ -59,18 +79,24 @@ def find_kwargs(**kwargs):
 def resolve_kwargs(entry, kwargs):
 	try:
 		for kwarg in kwargs:
+			# print(kwarg)
 			if kwarg == 'before_date':
 				# If the start aired date is after the given date
+				if entry['aired'] == None:
+					return False
 				if entry['aired'].get('from', '9999') > str(kwargs[kwarg]) and entry['aired'].get('on', '9999') > str(kwargs[kwarg]):
 					return False
 			elif kwarg == 'after_date':
 				# If the ending aired date is before the given date
+				if entry['aired'] == None:
+					return False
 				if entry['aired'].get('from', '0000') < str(kwargs[kwarg]) and entry['aired'].get('on', '0000') < str(kwargs[kwarg]):
 					return False
 			elif kwarg == 'score_above':
 				# If the score is below
 				if entry['score'] < kwargs[kwarg]:
 					return False
+
 			elif kwarg == 'produced_by':
 				if kwargs[kwarg].lower() not in [x['name'].lower() for x in entry['producer']]:
 					return False
@@ -94,11 +120,9 @@ def resolve_kwargs(entry, kwargs):
 			elif entry[kwarg] != kwargs[kwarg]:
 				return False
 	except:
-		print("We broke it")
-		pass
+		raise ValueError("{}, Kwarg Error {}".format(entry['aired'], kwarg))
 		# print(entry)
 	return True
 
 def find_MAL_recs(mal_id):
 	pass
-

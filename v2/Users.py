@@ -8,12 +8,22 @@ from collections import defaultdict
 import itertools
 from functools import lru_cache
 
+from multiprocessing.dummy import Pool
+
 def add_new_anime(ID):
 	if searcher.find_by_id(ID) != None:
 		print("Already have {} in the system!".format(ID))
 		return None
-	anime = AnimeScraper.Scrape(ID)	
+	anime = AnimeScraper.Scrape(ID)
 	return anime
+
+p = Pool(8)
+
+check_1 = []
+check_2 = []
+check_3 = []
+check_4 = []
+check_5 = []
 
 class User:
 	def __init__(self, username):
@@ -25,14 +35,9 @@ class User:
 
 		self.average_difference = [x['score']/find_by_id(x['anime_id'])['score'] for x in self.user_data if x != None and find_by_id(x['anime_id']) != None and x['score'] != 0]
 		self.average_difference = sum(self.average_difference)/len(self.average_difference)
-		print(self.average_difference)
-
+		print(round(self.average_difference, 2))
 
 		self.recommendations = None
-
-		self.genre_ratings = {}
-		self.studio_ratings = {}
-		self.staff_ratings = {}
 
 		self.confirm_valid()
 
@@ -85,103 +90,80 @@ class User:
 		return self
 
 	# @lru_cache(maxsize = 100)
+	#
+	# def time_print(self):
+	# 	global check_1, check_2, check_3, check_4, check_5
+	# 	print("Check 1: {}".format(sum(check_1)/len(check_1)))
+	# 	print("Check 2: {}".format(sum(check_2)/len(check_2)))
+	# 	print("Check 3: {}".format(sum(check_3)/len(check_3)))
+	# 	print("Check 4: {}".format(sum(check_4)/len(check_4)))
+	# 	print("Check 5: {}, {}".format(sum(check_5)/len(check_5), sum(check_5)))
+	# 	check_1 = []
+	# 	check_2 = []
+	# 	check_3 = []
+	# 	check_4 = []
+	# 	check_5 = []
+
+	def calculate_combos(self):
+		combos = set()
+		for anime in self.user_data:
+			score = anime['score']
+			if score == 0:
+				continue
+			status = anime['status']
+			mal_id = anime['anime_id']
+			# print(mal_id)
+			anime = find_by_id(mal_id)
+			if anime == None:
+				continue
+
+			# GENRES
+			genres = [x['name'] for x in anime['genre'] if x != None]
+			for genre_group in [combo for x in range(1, len(genres)+1) for combo in itertools.combinations(genres, x)]:
+				str_genre_group = str("|".join(sorted(genre_group)))
+				self.json_data['normalized_genres'][str_genre_group] = self.json_data['normalized_genres'].get(str_genre_group, []) + [round(score/anime['score'], 2)]
+
+
+			# STUDIO
+			studios = [x['name'] for x in anime['studio']]
+			licensors = [x['name'] for x in anime['licensor']]
+			producers = [x['name'] for x in anime['producer']]
+			All = studios + licensors + producers
+			for studio in All:
+				self.json_data['normalized_studio'][studio] = self.json_data['normalized_studio'].get(studio, []) + [round(score/anime['score'], 2)]
+
+			# STAFF
+			staff = [x['name'] for x in anime.get('staff', [])]
+			for s in staff:
+				self.json_data['normalized_staff'][s] = self.json_data['normalized_staff'].get(s, []) + [round(score/anime['score'], 2)]
+
+
+		# print(len(combos))
+
 	def genre_rating(self, genres):
-
-		if type(genres) != list:
-			comp = [genres]
-		else:
-			comp = genres
-		comp = str("|".join(sorted(comp)))
-		if comp in self.genre_ratings:
-			return self.genre_ratings[comp]
-
-		def get_rating_for(genre_group, dict_name):
-
-			if len(genre_group) == 1:
-				genre_group = genre_group[0]
-			else:
-				genre_group = str("|".join(sorted(genre_group)))
-
-			if genre_group in self.json_data[dict_name].keys():
-				# print("Found stored value {}".format(genre_group))
-				return self.json_data[dict_name][genre_group]
-			# print(genre_group)
-			set_genre_group = set(genre_group.split("|"))
-
-			for anime in self.user_data:
-				score = anime['score']
-				if score == 0:
-					continue
-				status = anime['status']
-				mal_id = anime['anime_id']
-				# print(mal_id)
-				anime = find_by_id(mal_id)
-				if anime == None:
-					return [1]
-
-				if set_genre_group <= set([x['name'] for x in anime['genre'] if x != None]):
-					if dict_name == 'normalized_genres':
-						self.json_data['normalized_genres'][genre_group] = self.json_data['normalized_genres'].get(genre_group, []) + [round(score/anime['score'], 2)]
-					else:
-						raise Error("Bad Dictionary Name")
-			if genre_group in self.json_data[dict_name].keys():
-				return self.json_data[dict_name][genre_group]
-			else:
-				return [1]
 
 		ratings = []
 		if type(genres) != list:
 			genres = [genres]
-		# print(genres)
-		for genre_group in [combo for x in range(1, len(genres)+1) for combo in itertools.combinations(genres, x)]:
-			# print(genre_group)
-			sub_ratings = get_rating_for(genre_group, 'normalized_genres')
-			if len(sub_ratings) == 0:
-				continue
-			ratings += [sum(sub_ratings)/len(sub_ratings) * (1/self.average_difference)]# * len(genre_group)
 
+		for genre_group in [combo for x in range(1, min(len(genres)+1, 5)) for combo in itertools.combinations(genres, x)]:
+			str_genre_group = str("|".join(sorted(genre_group)))
+			sub_ratings = self.json_data['normalized_genres'].get(str_genre_group, [1])
+			ratings += [sum(sub_ratings)/len(sub_ratings) * (1/self.average_difference)] * len(genre_group)
 		res = sum(ratings + ([1] * 1))/len(ratings + ([1] * 1))
-		self.genre_ratings[comp] = res 
-		return res 
+
+		# print(res)
+		return res
 
 	# @lru_cache(maxsize = 100)
 	def studio_rating(self, passed_anime):
-		def get_rating_for(studio):
-			if studio in self.json_data['normalized_studio'].keys():
-				return self.json_data['normalized_studio'][studio]
-
-			for anime in self.user_data:
-				score = anime['score']
-				if score == 0:
-					continue
-				status = anime['status']
-				mal_id = anime['anime_id']
-				anime = find_by_id(mal_id)
-				if anime == None:
-					return [1]
-
-				studios = [x['name'] for x in anime['studio']]
-				licensors = [x['name'] for x in anime['licensor']]
-				producers = [x['name'] for x in anime['producer']]
-
-				if studio in studios or studio in licensors or studio in producers:
-					self.json_data['normalized_studio'][studio] = self.json_data['normalized_studio'].get(studio, []) + [round(score/anime['score'], 2)]
-
-			if studio in self.json_data['normalized_studio'].keys():
-				return self.json_data['normalized_studio'][studio]
-			else:
-				return [1]
-
 		ratings = []
 		studios = [x['name'] for x in passed_anime['studio']]
 		licensors = [x['name'] for x in passed_anime['licensor']]
 		producers = [x['name'] for x in passed_anime['producer']]
 		All = studios + licensors + producers
-
 		for studio in All:
-			sub_ratings = get_rating_for(studio)
-			if len(sub_ratings) == 0:
-				continue
+			sub_ratings =  self.json_data['normalized_studio'].get(studio, [1])
 			ratings += [sum(sub_ratings)/len(sub_ratings) * (1/self.average_difference)]
 		return sum(ratings + ([1] * 2))/len(ratings + ([1] * 2))
 
@@ -189,41 +171,12 @@ class User:
 	def staff_rating(self, passed_anime):
 		if passed_anime.get('staff') == None:
 			return 1
-		def get_rating_for(staff):
-			if staff in self.json_data['normalized_staff'].keys():
-				return self.json_data['normalized_staff'][staff]
-
-			for anime in self.user_data:
-				score = anime['score']
-				if score == 0:
-					continue
-				status = anime['status']
-				mal_id = anime['anime_id']
-				anime = find_by_id(mal_id)
-				if anime == None:
-					return [1]
-
-				if anime.get('staff') == None:
-					return [1]
-
-				all_staff = [x['name'] for x in anime['staff']]
-
-				if staff in all_staff:
-					self.json_data['normalized_staff'][staff] = self.json_data['normalized_staff'].get(staff, []) + [round(score/anime['score'], 2)]
-
-			if staff in self.json_data['normalized_staff'].keys():
-				return self.json_data['normalized_staff'][staff]
-			else:
-				return [1]
-
 		ratings = []
 		staff = [x['name'] for x in passed_anime.get('staff', [])]
 		for s in staff:
-			sub_ratings = get_rating_for(s)
-			if len(sub_ratings) == 0:
-				continue
+			sub_ratings = self.json_data['normalized_staff'].get(s, [1]) #get_rating_for(s)
 			ratings += [sum(sub_ratings)/len(sub_ratings) * (1/self.average_difference)]
-		return sum(ratings + ([1] * 1))/len(ratings + ([1] * 1))	
+		return sum(ratings + ([1] * 1))/len(ratings + ([1] * 1))
 
 	# @lru_cache(maxsize = 100)
 	def watch_prequel(self, anime):
@@ -254,4 +207,5 @@ def find_user_object(username):
 	if USER == None:
 		USER = User(username).generate()
 	USERS[username] = USER
+	USER.calculate_combos()
 	return USER

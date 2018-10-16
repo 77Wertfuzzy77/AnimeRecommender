@@ -1,0 +1,8 @@
+body {
+  /* background-color: #ff9cff; */
+  background-image: linear-gradient(rgba(78,20,20,0.05), rgba(78,20,20,0.7)), url(../img/bg.jpg);
+  background-size: stretch;
+  overflow-x: hidden;
+
+  font-family: 'Neuton', serif;
+}

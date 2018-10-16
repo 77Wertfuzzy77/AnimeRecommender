@@ -7,20 +7,22 @@ from multiprocessing.dummy import Pool
 import json
 import xmltodict
 
+import traceback
+
 # Anime Scrapper
 def Scrape(ID):
 	link = "https://myanimelist.net/anime/{}".format(ID)
 	site = requests.get(link)
 
-	print("Scraping for {} Data".format(ID))
+	# print("Scraping for {} Data".format(ID))
 
 
 	if site.status_code != 200:
 		time.sleep(5)
 		if site.status_code != 404:
-			print("Retrying {} ({})".format(ID, site.status_code))
+			# print("Retrying {} ({})".format(ID, site.status_code))
 			return Scrape(ID)
-		print("404 ERROR RESPONSE")
+		# print("404 ERROR RESPONSE")
 		return None
 
 	soup = BeautifulSoup(site.text, "html.parser")
@@ -29,7 +31,7 @@ def Scrape(ID):
 		mal_id = ID
 
 		link_canonical = soup.find("link", rel = "canonical")['href']
-		
+
 		title = soup.find('title').text.replace("- MyAnimeList.net", "").strip()
 
 		title_english = soup.find("span", text="English:")
@@ -52,7 +54,7 @@ def Scrape(ID):
 			title_synonyms = raw_title_synonyms.split(",")
 
 		image_url = soup.find('img', itemprop = 'image', class_ = 'ac')['src']
-		
+
 		try:
 			_type = soup.find('span', text = "Type:").next_sibling.next_sibling.text
 		except:
@@ -73,46 +75,27 @@ def Scrape(ID):
 		airing = None
 
 		aired_string = soup.find('span', text = "Aired:").parent.text.split(":")[1].strip()
-		try:
-			_from, _to = aired_string.split("to")
-			_from_date = datetime.strptime(_from.strip(), '%b %d, %Y')
-			if _to.strip() not in "?" and "," in _to.strip():
-				_to_date = datetime.strptime(_to.strip(), '%b %d, %Y')
-			elif _to.strip() != "?":
-				_to_date = datetime.strptime(_to.strip(), '%Y')
-			else:
-				_to_date = "None"
-			_from = str(_from_date)
-			_to = str(_to_date)
 
-			aired = {
-				"from" : _from,
-				"to" : _to
-			}
-
-		except:
-			# print(aired_string)
-			if aired_string.strip() == 'Not available':
-				aired = {}
-			else:
-				try:
-					aired_date = datetime.strptime(aired_string.strip(), '%b %d, %Y')
-				except:
-					aired_date = datetime.strptime(aired_string.strip(), '%b, %Y')
-				aired = {
-					"on" : str(aired_date)
-				}
-			#print("ERROR PARSING AIRED DATE")
-			#return None
+		aired = parse_aired(aired_string)
+		#print("ERROR PARSING AIRED DATE")
+		#return None
 
 
 		duration = soup.find('span', text = "Duration:").parent.text.split(":")[1].strip()
 
 		rating = soup.find('span', text = "Rating:").parent.text.split(":")[1].strip()
 
-		score = float(soup.find('span', text = "Score:").next_sibling.next_sibling.text)
+		score = soup.find('span', text = "Score:").next_sibling.next_sibling.text
 
-		scored_by = int(soup.find('span', itemprop = "ratingCount").text.replace(",", ""))
+		try:
+			score = float(score)
+		except:
+			score = 0
+
+		try:
+			scored_by = int(soup.find('span', itemprop = "ratingCount").text.replace(",", ""))
+		except:
+			scored_by = 0
 
 		try:
 			rank = int(soup.find('span', text = "Ranked:").next_sibling.replace("#", "").strip())
@@ -125,12 +108,20 @@ def Scrape(ID):
 
 		favorites = int(soup.find('span', text = "Favorites:").next_sibling.replace(",", "").strip())
 
-		synopsis = soup.find('span', itemprop = "description").text
+
+		synopsis = soup.find('span', itemprop = "description")
+		if synopsis == None:
+			synopsis = ""
+		else:
+			synopsis = synopsis.text
 
 		background = None
 
 		if soup.find('span', text = "Premiered:") != None:
-			premiered = soup.find('span', text = "Premiered:").next_sibling.next_sibling.text
+			if soup.find('span', text = "Premiered:").next_sibling.next_sibling != None:
+				premiered = soup.find('span', text = "Premiered:").next_sibling.next_sibling.text
+			else:
+				premiered = None
 		else:
 			premiered = None
 
@@ -252,7 +243,7 @@ def Scrape(ID):
 
 		print("Found {} Data".format(mal_id))
 
-		return {  
+		return {
 		   "mal_id":mal_id,
 		   "link_canonical":link_canonical,
 		   "title":title,
@@ -280,7 +271,7 @@ def Scrape(ID):
 		   "background":background,
 		   "premiered":premiered,
 		   "broadcast":broadcast,
-		   "related":{  
+		   "related":{
 		      "Adaptation":Adaptation,
 		      "Alternative setting":Alternative_setting,
 		      "Sequel":Sequel,
@@ -301,7 +292,7 @@ def Scrape(ID):
 
 		   "time_stamp" : time_stamp}
 	except Exception as e:
-		print("Broke Stuff", e)
+		print(traceback.format_exc())
 		return None
 
 def Data_Pull(IDs):
@@ -323,7 +314,32 @@ def run():
 	with open("DATABASE.json", 'w') as f:
 		json.dump(scrapped, f, indent = 4)
 
+def parse_aired(aired_string):
+	aired = {}
+	# Double Date
+	if "to" in aired_string:
+		_from, _to = aired_string.split("to")
+		aired = {
+			"from" : parse_date(_from),
+			"to" : parse_date(_to)
+		}
 
+	# Single Date
+	elif "?" not in aired_string:
+			aired = {
+				"on" : parse_date(aired_string)
+			}
+
+def parse_date(date):
+	if date.strip() in ["Not available", "?"]:
+		return None
+	DATE_PATTERNS = ['%b %d, %Y', '%b, %Y', '%Y']
+	for pattern in DATE_PATTERNS:
+		try:
+			return datetime.strptime(date.strip(), pattern)
+		except:
+			pass
+	raise ValueError("Invalid Aired Date: {}".format(date))
 
 def user_scrape(username):
 	link = "https://myanimelist.net/malappinfo.php?u={}&status=all&type=anime".format(username)
@@ -347,4 +363,3 @@ def user_scrape(username):
 	return scraped
 	# if x != None:
 	# 	return json.loads(x['data-items'])
-

@@ -1,0 +1,45 @@
+{% extends "base.html"}
+
+{% block content %}
+<div class="mal-text-title">
+  <h1>Anime Recommendations for {{name}}</h1>
+        <h3>Parameters: {{parameters}}</h3>
+        <h3>Time: {{time}}s</h3>
+</div>
+<div class="padded-line"></div>
+<div class="mal-text-content">
+  <table class="mal-table">
+    <thead class = "mal-thead">
+      <td>Anime Name</td>
+      <td>Mal Score</td>
+      <td>Predicted Score</td>
+      <td>Genres</td>
+      <td>Genre Grade</td>
+      <td>Studio Grade</td>
+      <td>Staff Grade</td>
+      <td>Related Grade</td>
+    </thead>
+    <tbody>
+    {{recommendation_anime}}
+    <!-- {% for anime in recommendation_anime %}
+    <tr>
+      <td>
+        <a href="{Link}" title = "MyAnimeList Link">
+          <div class="">
+            {name}
+          </div>
+        </a>
+      </td>
+      <td>{anime['mal_score']}</td>
+      <td>{Predicted_Score}</td>
+      <td>{Genres}</td>
+      <td>{Genre_Grade}</td>
+      <td>{Studio_Grade}</td>
+      <td>{Staff_Grade}</td>
+      <td>{Related_Grade}</td>
+    </tr>
+    {% endfor %} -->
+    </tbody>
+  </table>
+</div>
+{% endblock %}
